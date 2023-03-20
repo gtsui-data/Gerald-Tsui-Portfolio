@@ -1,0 +1,254 @@
+
+
+--change id to integer
+ALTER TABLE dbo.tedtalk
+ALTER COLUMN id INTEGER;
+
+--change duration to integer
+ALTER TABLE dbo.tedtalk
+ALTER COLUMN duration INTEGER;
+
+--trim space from key columns
+UPDATE dbo.tedtalk
+SET 
+    event = TRIM(event),
+    page_url = TRIM(page_url),
+    title = TRIM(title),
+    youtube_video_code= TRIM(youtube_video_code);
+  
+--add comma to integer
+--SELECT FORMAT(1234567, 'N0')
+
+
+-- change duration to minutes
+UPDATE dbo.tedtalk
+SET
+	duration = ceiling(duration/60)
+
+
+
+
+--case statement to convert views from 17K to 17000
+SELECT 
+  CASE 
+    WHEN likes LIKE '%K' THEN CAST(LEFT(likes, LEN(likes) - 1) AS DECIMAL(10,2)) * 1000 
+    WHEN likes LIKE '%M' THEN CAST(LEFT(likes, LEN(likes) - 1) AS DECIMAL(10,2)) * 1000000 
+    ELSE CAST(likes AS DECIMAL(10,2))
+  END AS likes_converted
+FROM dbo.tedtalk;
+
+--update table using case to change 17K to 17000
+UPDATE dbo.tedtalk
+SET
+	likes = 
+  CASE 
+    WHEN likes LIKE '%K' THEN CAST(LEFT(likes, LEN(likes) - 1) AS DECIMAL(10,2)) * 1000 
+    WHEN likes LIKE '%M' THEN CAST(LEFT(likes, LEN(likes) - 1) AS DECIMAL(10,2)) * 1000000 
+    ELSE CAST(likes AS DECIMAL(10,2))
+	END;
+
+--remove decimals
+UPDATE dbo.tedtalk
+SET likes_number = likes
+
+UPDATE dbo.tedtalk
+SET likes = replace(likes,'.00','')
+	
+
+
+-- Create new Published_date column and format row
+
+SELECT CONVERT(varchar(10), CAST(published_date AS date), 101)
+FROM dbo.tedtalk
+
+ALTER TABLE dbo.tedtalk
+ADD final_publish_date VARCHAR(10);
+
+
+
+-- check to see if any errors in ted website page
+--NOT DONE
+SELECT 
+  CASE 
+    WHEN page_url LIKE '%https://www.ted.com/talks/%' THEN Good
+    ELSE BAD
+  END AS Good
+FROM dbo.tedtalk;
+
+–-Query to extract Speaker name from string
+select *
+from dbo.tedtalk
+
+SELECT 
+    SUBSTRING(speakers, CHARINDEX('"name":"', speakers) + 8, CHARINDEX('","occupation"', speakers) - CHARINDEX('"name":"', speakers) - 8) AS extracted_name
+FROM 
+    dbo.tedtalk
+WHERE 
+    speakers LIKE '%{"name":"%'
+
+– Create new table to hold extracted name.
+ALTER TABLE dbo.tedtalk 
+ADD speaker_name varchar(255);
+
+-- update the new column with the extracted names
+UPDATE dbo.tedtalk 
+SET speaker_name = SUBSTRING(speakers, CHARINDEX('"name":"', speakers) + 8, CHARINDEX('","occupation"', speakers) - CHARINDEX('"name":"', speakers) - 8)
+WHERE speakers LIKE '%{"name":"%';
+
+–- Extract the Occupation from the string
+SELECT 
+SUBSTRING(speakers, CHARINDEX('"occupation":"', speakers) + 14, CHARINDEX('"}]', speakers) - CHARINDEX('"occupation":"', speakers) - 14) AS extracted_occupation
+FROM dbo.tedtalk
+WHERE speakers LIKE '%{"name":"%';
+
+–- Update Table with occupation data
+UPDATE dbo.tedtalk SET speaker_occupation = SUBSTRING(speakers, CHARINDEX('"occupation":"', speakers) + 14, CHARINDEX('"}]', speakers) - CHARINDEX('"occupation":"', speakers) - 14) 
+WHERE speakers LIKE '%{"name":"%';
+
+–- Update speaker_occupation so the first letter in each word is capitalized
+UPDATE dbo.tedtalk 
+         SET speaker_occupation = STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))
+         FROM dbo.SplitWords(speaker_occupation)
+         FOR XML PATH('')), 1, 1, '')
+
+
+
+—ALTER TABLE dbo.tedtalk 
+Alter column speaker_occupation varchar(8000);
+
+
+-—Delete excess from the occupation cells from bad scrapping
+UPDATE dbo.tedtalk SET speaker_occupation = SUBSTRING(speakers, CHARINDEX('"occupation":"', speakers) + 14, CHARINDEX('"}]', speakers) - CHARINDEX('"occupation":"', speakers) - 14)
+WHERE speakers LIKE '%{"name":"%';
+
+-– Had to create this function to capitalize first letter of each word in speaker_occupation MS SQL Server
+CREATE FUNCTION dbo.SplitWords
+(
+    @InputString VARCHAR(MAX)
+)
+RETURNS @OutputTable TABLE (Word VARCHAR(50))
+AS
+BEGIN
+    DECLARE @Word VARCHAR(50)
+    WHILE LEN(@InputString) > 0
+    BEGIN
+        SET @Word = NULL
+        SET @InputString = LTRIM(RTRIM(@InputString))
+        IF CHARINDEX(' ', @InputString) > 0
+        BEGIN
+            SET @Word = LEFT(@InputString, CHARINDEX(' ', @InputString) - 1)
+            SET @InputString = SUBSTRING(@InputString, LEN(@Word) + 1, LEN(@InputString))
+        END
+        ELSE
+        BEGIN
+            SET @Word = @InputString
+            SET @InputString = NULL
+        END
+        IF @Word IS NOT NULL AND @Word <> ''
+            INSERT INTO @OutputTable (Word) VALUES (@Word)
+    END
+    RETURN
+END
+
+-–After above function created, ran this query to captialize first letter in words in the speaker_occupation column
+select STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))Columbus, Ohio
+         FROM dbo.SplitWords(speaker_occupation)
+         FOR XML PATH('')), 1, 1, '')
+from dbo.tedtalk
+
+-–used this query to update the speaker_occupation column with capitalized letters.
+UPDATE dbo.tedtalk SET speaker_occupation = STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))
+         FROM dbo.SplitWords(speaker_occupation)
+         FOR XML PATH('')), 1, 1, '')
+
+–used the dbo.splitwords function to run this query to captialize first letter in words in the title column
+select STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))
+         FROM dbo.SplitWords(title)
+         FOR XML PATH('')), 1, 1, '')
+from dbo.tedtalk
+
+––used this query to update the title column with capitalized letters.
+UPDATE dbo.tedtalk SET title = STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))
+         FROM dbo.SplitWords(title)
+         FOR XML PATH('')), 1, 1, '')
+
+–- adding comma to likes column numbers required fixing errors. I needed to use this code to find edit text into numbers. 
+
+select id, likes 
+from dbo.tedtalk
+where likes like '%006%'
+
+update dbo.tedtalk
+SET likes = 11000000
+where id=13589
+
+-— Ran three queries below to create new likes column, move content from original likes column as integer and format with commas.
+
+ALTER TABLE dbo.tedtalk ADD likes_new INT NULL;
+
+UPDATE dbo.tedtalk 
+SET likes_new = CAST(likes AS int);
+
+
+Alter table dbo.tedtalk
+add likes_new int
+ALTER TABLE dbo.tedtalk ALTER COLUMN likes_new varchar(50);
+UPDATE dbo.tedtalk SET likes_new = FORMAT(CAST(likes_new AS int), 'N0') WHERE likes_new IS NOT NULL;
+
+-– need to add commas to the views.
+–Created new table
+
+Alter table dbo.tedtalk
+add views_new VARCHAR(200)
+
+–- Had issues moving and formatting numbers to new column. Had to use money format.
+
+UPDATE dbo.tedtalk 
+SET views_new = REPLACE(CONVERT(VARCHAR, CONVERT(MONEY, views), 1), '.00', '')
+WHERE views IS NOT NULL;
+
+
+-–code to create watch_tedtalk with youtube link or option to watch from Ted website.
+
+SELECT
+  CASE
+    WHEN youtube_video_code IS NULL OR youtube_video_code = '' OR youtube_video_code = 'null' OR youtube_video_code = '#NAME?' THEN page_url
+    ELSE CONCAT('https://www.youtube.com/watch?', youtube_video_code)
+  END AS video_link
+FROM dbo.tedtalk
+ORDER BY video_link DESC
+
+
+Alter table dbo.tedtalk
+ADD watch_tedtalk VARCHAR(1000)
+
+UPDATE dbo.tedtalk
+SET watch_tedtalk = 
+    CASE 
+       WHEN youtube_video_code IS NULL OR youtube_video_code = '' OR youtube_video_code = 'null' OR youtube_video_code = '#NAME?' THEN page_url
+    ELSE CONCAT('https://www.youtube.com/watch?', youtube_video_code)
+  END;
+
+
+–- Find the count of page URL where ted.com isn’t present to see if any errors or bad text.
+
+SELECT COUNT(*) FROM dbo.tedtalk WHERE page_url NOT LIKE '%https://www.ted.com/talks/%' 
+
+
+
+-–NEED TO REORDER ROWS CODE BELOW
+-- add a new column with the desired order
+ALTER TABLE dbo.tedtalk ADD new_final_publish_date varchar(10) NULL
+
+-- update the new column with data from the old column
+UPDATE dbo.tedtalk SET new_final_publish_date = final_publish_date
+
+-- drop the old column
+ALTER TABLE dbo.tedtalk DROP COLUMN final_publish_date
+
+-- rename the new column to the original column name
+EXEC sp_rename 'dbo.tedtalk.new_final_publish_date', 'final_publish_date', 'COLUMN'
+
+-- reorder the columns as needed
+ALTER TABLE dbo.tedtalk ALTER COLUMN final_publish_date varchar(10) NOT NULL
+ALTER TABLE dbo.tedtalk ALTER COLUMN page_url varchar(255) NULL
