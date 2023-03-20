@@ -1,0 +1,283 @@
+
+-- Ran this query to see how many accounts in user database actually placed an order. 
+-- There are 100,000 unique IDs in the user database.
+-- 80,005 have placed an order, 80% of user database.
+
+SELECT  count(distinct id)
+FROM `bigquery-public-data.thelook_ecommerce.users` AS users
+JOIN `bigquery-public-data.thelook_ecommerce.orders` AS orders
+ON users.id=orders.user_id
+
+
+--Want to see distinct count of website visit sessions in events table, came out to 681070
+
+SELECT count(distinct session_id), 
+FROM `organic-area-378117.ecommerce.events` 
+
+--Want to see breakdown of source and the percent of traffic each source makes up
+SELECT traffic_source, count(distinct session_id) AS marketing_source, 
+      (SELECT count(distinct session_id) FROM `organic-area-378117.ecommerce.events`) AS Total_Sessions, 
+      (count(distinct session_id))/(SELECT count(distinct session_id) FROM `organic-area-378117.ecommerce.events`) AS Percent
+FROM `organic-area-378117.ecommerce.events` 
+group by traffic_source
+
+
+--Took code and ran a JOIN on subquery where I found count of Purchases. I wanted to find out the conversion rate for each marketing source. 
+--they turned out to be very similar.
+SELECT a.traffic_source, 
+  count(distinct a.session_id) AS marketing_source,
+  (SELECT count(distinct session_id) FROM `organic-area-378117.ecommerce.events`) AS Total_Sessions,
+  (count(distinct a.session_id))/(SELECT count(distinct session_id) FROM `organic-area-378117.ecommerce.events`) AS Percent_overall_traffic,
+  b.marketing_source_purchase, b.marketing_source_purchase/count(distinct a.session_id) conversion_rate
+FROM 
+  `organic-area-378117.ecommerce.events` AS a
+JOIN 
+  (SELECT traffic_source, count(distinct session_id) AS marketing_source_purchase
+   FROM `organic-area-378117.ecommerce.events` 
+   WHERE event_type = 'purchase'
+   GROUP BY traffic_source, event_type) AS b
+ON a.traffic_source = b.traffic_source
+GROUP BY 
+  a.traffic_source,
+  b.marketing_source_purchase
+ORDER BY 
+  a.traffic_source
+
+
+--Subracted cancelled orders from revenue and items ordered first, then subtracted returned orders to get net. I did this to get a more accurate reflection of items sold, revenue, and actual return rate off shipped orders.
+--Used NULLIF() since there was a zero deminator in return rate calculations.
+
+SELECT products.brand, count(order_items.order_id) AS quantity, 
+
+SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_item_count,
+
+COUNT(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END) AS Quantity_minus_cancelled,
+
+SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END) AS return_item_count,
+
+(COUNT(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END))- (SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END)) AS net_items_sold,
+
+(SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END)) / NULLIF(count(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END),0) AS item_return_rate,
+
+sum(order_items.sale_price) AS sales_revenue, 
+
+SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END) AS cancelled_revenue,
+
+SUM(order_items.sale_price) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END) AS revenue_minus_cancelled,
+
+SUM(CASE WHEN order_items.status = 'Returned' THEN order_items.sale_price ELSE 0 END) AS returned_revenue,
+
+SUM(order_items.sale_price) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END)- SUM(CASE WHEN order_items.status = 'Returned' THEN order_items.sale_price ELSE 0 END) AS net_revenue
+
+FROM `organic-area-378117.ecommerce.order_items` AS order_items
+
+JOIN `organic-area-378117.ecommerce.products` AS products
+
+ON order_items.product_id=products.id
+
+GROUP BY products.brand
+
+
+
+-- traffic source by category
+
+SELECT products.category,
+
+users.traffic_source,
+
+count(distinct users.id) AS count_user_id,
+
+count(order_items.order_id) AS quantity, 
+
+SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_item_count,
+
+count(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END) AS Quantity_minus_cancelled,
+
+SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END) AS return_item_count,
+
+(count(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END))- (SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END)) AS net_items_sold,
+
+(SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END)) / NULLIF(count(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END),0) AS item_return_rate,
+
+sum(order_items.sale_price) AS sales_revenue, 
+
+SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END) AS cancelled_revenue,
+
+sum(order_items.sale_price) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END) AS revenue_minus_cancelled,
+
+SUM(CASE WHEN order_items.status = 'Returned' THEN order_items.sale_price ELSE 0 END) AS returned_revenue,
+
+sum(order_items.sale_price) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END)- SUM(CASE WHEN order_items.status = 'Returned' THEN order_items.sale_price ELSE 0 END) AS net_revenue
+
+FROM `organic-area-378117.ecommerce.order_items` AS order_items
+
+JOIN `organic-area-378117.ecommerce.products` AS products
+
+ON order_items.product_id=products.id
+
+FULL OUTER JOIN `organic-area-378117.ecommerce.users` AS users
+
+ON order_items.user_id=users.id
+
+where FORMAT_TIMESTAMP('%Y-%m', TIMESTAMP(order_items.created_at)) between '2022-01' and '2022-12' 
+
+GROUP BY products.category, users.traffic_source
+
+ORDER BY net_revenue DESC
+
+
+-- sales by traffic source by country
+
+SELECT order_items.order_id,
+
+users.state,
+
+users.country,
+
+users.traffic_source,
+
+FORMAT_TIMESTAMP('%Y-%m', TIMESTAMP(order_items.created_at)) AS month_year,
+
+COUNT(distinct users.id) AS count_user_id,
+
+COUNT(order_items.order_id) AS quantity, 
+
+SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END) AS cancelled_item_count,
+
+COUNT(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END) AS Quantity_minus_cancelled,
+
+SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END) AS return_item_count,
+
+(COUNT(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END))- (SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END)) AS net_items_sold,
+
+(SUM(CASE WHEN order_items.status = 'Returned' THEN 1 ELSE 0 END)) / NULLIF(count(order_items.order_id) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN 1 ELSE 0 END),0) AS item_return_rate,
+
+SUM(order_items.sale_price) AS sales_revenue, 
+
+SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END) AS cancelled_revenue,
+
+sum(order_items.sale_price) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END) AS revenue_minus_cancelled,
+
+SUM(CASE WHEN order_items.status = 'Returned' THEN order_items.sale_price ELSE 0 END) AS returned_revenue,
+
+SUM(order_items.sale_price) - SUM(CASE WHEN order_items.status = 'Cancelled' THEN order_items.sale_price ELSE 0 END)- SUM(CASE WHEN order_items.status = 'Returned' THEN order_items.sale_price ELSE 0 END) AS net_revenue
+
+FROM `organic-area-378117.ecommerce.order_items` AS order_items
+
+JOIN `organic-area-378117.ecommerce.products` AS products
+
+ON order_items.product_id=products.id
+
+FULL OUTER JOIN `organic-area-378117.ecommerce.users` AS users
+
+ON order_items.user_id=users.id
+
+WHERE FORMAT_TIMESTAMP('%Y-%m', TIMESTAMP(order_items.created_at)) between '2022-01' and '2022-12' 
+
+GROUP BY order_items.order_id, users.state, users.country, users.traffic_source, month_year
+
+ORDER BY net_revenue DESC
+
+
+--Cart abandonment rate
+SELECT traffic_source, 
+COUNT(DISTINCT session_id) AS marketing_source, 
+(SELECT COUNT(distinct session_id) FROM `organic-area-378117.ecommerce.events`) AS Total_Sessions, 
+(COUNT(DISTINCT session_id))/(SELECT count(DISTINCT session_id) FROM `organic-area-378117.ecommerce.events`) AS Percent,
+SUM(CASE WHEN event_type = 'cart' THEN 1 ELSE 0 END) AS cart,
+SUM(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END) AS purchase,
+SUM(CASE WHEN event_type = 'purchase' THEN 1 ELSE 0 END)/ SUM(CASE WHEN event_type = 'cart' THEN 1 ELSE 0 END) as purchase_conversion_rate
+FROM `organic-area-378117.ecommerce.events` 
+group by traffic_source
+
+
+-- brand and category sales in 2022 by month/date
+SELECT
+  FORMAT_TIMESTAMP('%Y-%m', TIMESTAMP(order_items.created_at)) AS month_year,
+  products.category,
+  products.brand,
+  COUNT(order_items.order_id) AS quantity,
+  SUM(CASE
+      WHEN order_items.status = 'Cancelled' THEN 1
+    ELSE
+    0
+  END
+    ) AS cancelled_item_count,
+  COUNT(order_items.order_id) - SUM(CASE
+      WHEN order_items.status = 'Cancelled' THEN 1
+    ELSE
+    0
+  END
+    ) AS Quantity_minus_cancelled,
+  SUM(CASE
+      WHEN order_items.status = 'Returned' THEN 1
+    ELSE
+    0
+  END
+    ) AS return_item_count,
+  (COUNT(order_items.order_id) - SUM(CASE
+        WHEN order_items.status = 'Cancelled' THEN 1
+      ELSE
+      0
+    END
+      ))- (SUM(CASE
+        WHEN order_items.status = 'Returned' THEN 1
+      ELSE
+      0
+    END
+      )) AS net_items_sold,
+  (SUM(CASE
+        WHEN order_items.status = 'Returned' THEN 1
+      ELSE
+      0
+    END
+      )) / NULLIF(COUNT(order_items.order_id) - SUM(CASE
+        WHEN order_items.status = 'Cancelled' THEN 1
+      ELSE
+      0
+    END
+      ),0) AS item_return_rate,
+  SUM(order_items.sale_price) AS sales_revenue,
+  SUM(CASE
+      WHEN order_items.status = 'Cancelled' THEN order_items.sale_price
+    ELSE
+    0
+  END
+    ) AS cancelled_revenue,
+  SUM(order_items.sale_price) - SUM(CASE
+      WHEN order_items.status = 'Cancelled' THEN order_items.sale_price
+    ELSE
+    0
+  END
+    ) AS revenue_minus_cancelled,
+  SUM(CASE
+      WHEN order_items.status = 'Returned' THEN order_items.sale_price
+    ELSE
+    0
+  END
+    ) AS returned_revenue,
+  SUM(order_items.sale_price) - SUM(CASE
+      WHEN order_items.status = 'Cancelled' THEN order_items.sale_price
+    ELSE
+    0
+  END
+    )- SUM(CASE
+      WHEN order_items.status = 'Returned' THEN order_items.sale_price
+    ELSE
+    0
+  END
+    ) AS net_revenue
+FROM
+  `organic-area-378117.ecommerce.order_items` AS order_items
+JOIN
+  `organic-area-378117.ecommerce.products` AS products
+ON
+  order_items.product_id=products.id
+WHERE
+  FORMAT_TIMESTAMP('%Y-%m', TIMESTAMP(order_items.created_at)) BETWEEN '2022-01'
+  AND '2022-12'
+GROUP BY
+  month_year,
+  products.category,
+  products.brand
+
