@@ -217,3 +217,11 @@ EXEC sp_rename 'dbo.tedtalk.new_final_publish_date', 'final_publish_date', 'COLU
 -- reorder the columns as needed
 ALTER TABLE dbo.tedtalk ALTER COLUMN final_publish_date varchar(10) NOT NULL
 ALTER TABLE dbo.tedtalk ALTER COLUMN page_url varchar(255) NULL
+
+--remove duplicate rows
+DELETE FROM bdo.tedtalk
+WHERE id NOT IN (
+    SELECT MIN(id)
+    FROM mytable
+    GROUP BY id, duration_minutes, event, likes_new, page_url, final_publish_date, recorded_date, speaker, title, views, youtube_video_code, watch_tedtalk
+);
