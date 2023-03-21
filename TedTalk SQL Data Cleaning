@@ -95,25 +95,7 @@ UPDATE dbo.tedtalk
 SET speaker_name = SUBSTRING(speakers, CHARINDEX('"name":"', speakers) + 8, CHARINDEX('","occupation"', speakers) - CHARINDEX('"name":"', speakers) - 8)
 WHERE speakers LIKE '%{"name":"%';
 
-–- Extract the Occupation from the string
-SELECT 
-SUBSTRING(speakers, CHARINDEX('"occupation":"', speakers) + 14, CHARINDEX('"}]', speakers) - CHARINDEX('"occupation":"', speakers) - 14) AS extracted_occupation
-FROM dbo.tedtalk
-WHERE speakers LIKE '%{"name":"%';
-
-–- Update Table with occupation data
-UPDATE dbo.tedtalk SET speaker_occupation = SUBSTRING(speakers, CHARINDEX('"occupation":"', speakers) + 14, CHARINDEX('"}]', speakers) - CHARINDEX('"occupation":"', speakers) - 14) 
-WHERE speakers LIKE '%{"name":"%';
-
-—ALTER TABLE dbo.tedtalk 
-Alter column speaker_occupation varchar(8000);
-
-
--—Delete excess from the occupation cells from bad scrapping
-UPDATE dbo.tedtalk SET speaker_occupation = SUBSTRING(speakers, CHARINDEX('"occupation":"', speakers) + 14, CHARINDEX('"}]', speakers) - CHARINDEX('"occupation":"', speakers) - 14)
-WHERE speakers LIKE '%{"name":"%';
-
--– Had to create this function to capitalize first letter of each word in speaker_occupation MS SQL Server
+-– Had to create this function to capitalize first letter of each word in Title column in MS SQL Server
 CREATE FUNCTION dbo.SplitWords
 (
     @InputString VARCHAR(MAX)
@@ -142,18 +124,8 @@ BEGIN
     RETURN
 END
 
--–After above function created, ran this query to captialize first letter in words in the speaker_occupation column
-select STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))Columbus, Ohio
-         FROM dbo.SplitWords(speaker_occupation)
-         FOR XML PATH('')), 1, 1, '')
-from dbo.tedtalk
 
--–used this query to update the speaker_occupation column with capitalized letters.
-UPDATE dbo.tedtalk SET speaker_occupation = STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))
-         FROM dbo.SplitWords(speaker_occupation)
-         FOR XML PATH('')), 1, 1, '')
-
-–used the dbo.splitwords function to run this query to captialize first letter in words in the title column
+–-used the dbo.splitwords function to run this query to captialize first letter in words in the title column
 select STUFF((SELECT ' ' + UPPER(LEFT(Word, 1)) + LOWER(SUBSTRING(Word, 2, LEN(Word)))
          FROM dbo.SplitWords(title)
          FOR XML PATH('')), 1, 1, '')
@@ -188,7 +160,7 @@ ALTER TABLE dbo.tedtalk ALTER COLUMN likes_new varchar(50);
 UPDATE dbo.tedtalk SET likes_new = FORMAT(CAST(likes_new AS int), 'N0') WHERE likes_new IS NOT NULL;
 
 -– need to add commas to the views.
-–Created new table
+–-Created new table
 
 Alter table dbo.tedtalk
 add views_new VARCHAR(200)
