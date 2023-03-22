@@ -1,0 +1,21 @@
+weight = input("Enter your weight in lbs: ")
+weight_float = float(weight)
+height = input("Enter your height in inches: ")
+height_float = float(height)
+bmi = (weight_float*703)/(height_float*height_float)
+bmi_round = round(bmi,1)
+print(bmi_round)
+if bmi_round < 18.5:
+    print('Underweight Minimal')
+elif bmi_round >= 18.51 and bmi_round <= 24.99:
+    print('Normal weight Minimal')
+elif bmi_round >=25 and bmi_round <= 29.99:
+    print('overweight Increased')
+elif bmi_round >= 30 and bmi_round <= 34.99:
+    print('Obese High')
+elif bmi_round >=35 and bmi_round <= 39.99:
+    print('Severly Obese Very High')
+elif bmi_round >= 40:
+    print('Morbidly Obese Extremely High')
+else:
+    print("Didn't Work")
